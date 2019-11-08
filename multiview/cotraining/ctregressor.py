@@ -16,11 +16,11 @@
 
 from .base import BaseCoTrainEstimator
 import numpy as np
-from sklearn.naive_bayes import GaussianNB
+from sklearn.neighbors import KNeighborsRegressor
 from ..utils.utils import check_Xs, check_Xs_y_nan_allowed
 
 
-class CTRegressor():
+class CTRegressor(BaseCoTrainEstimator):
     def __init__(
                  self,
                  k_neighbors=3,
@@ -30,12 +30,13 @@ class CTRegressor():
                  ):
         """
         Co-Training Regressor
+
         This class implements the co-training regressor with the framework as
-        described in [1]. This should ideally be used on 2 views of the input
-        data which satisfy the 3 conditions for multi-view co-training
-        (sufficiency, compatibility, conditional independence) as in [2].
-        Extends BaseCoTrainEstimator.
-        
+        described in [1]. If using with multi-view data, this should ideally
+        be used on 2 views of the input data which satisfy the 3 conditions
+        for multi-view co-training (sufficiency, compatibility, conditional
+        independence) as in [2]. Extends BaseCoTrainEstimator.
+
         Parameters
         ----------
         k_neighbors : int
@@ -90,11 +91,7 @@ class CTRegressor():
                          KNeighborsRegressor(n_neighbors=k_neighbors, p=p[1]),
                          random_state)
 
-        self.random_state = random_state
-
-        self.p_ = []
-        self.p_.append(p[0])
-        self.p_.append(p[1])
+        self.p_ = [p[0], p[1]]
 
         self.n_views_ = 2  # only 2 view learning supported currently
 
@@ -111,7 +108,7 @@ class CTRegressor():
             y,
             X_test,
             y_test,
-            unlabeled_pool_size=75,
+            unlabeled_pool_size=100,
             num_iter=50,
             ):
         """
@@ -134,8 +131,12 @@ class CTRegressor():
             The maximum number of training iterations to run.
         """
 
+        Xs, y = check_Xs_y_nan_allowed(Xs,
+                                       y,
+                                       multiview=True,
+                                       enforce_views=self.n_views_)
+
         y = np.array(y)
-        y = y.reshape(-1,)
 
         np.random.seed(self.random_state)
 
@@ -245,6 +246,7 @@ class CTRegressor():
 
         return iter_errors1, iter_errors2, iter_errors
 
+
     def estimate_delta_MSE_(self, old_estimator, new_estimator, X, y):
         """
         Estimate the decrease in MSE of the new estimator based on a small
@@ -276,6 +278,7 @@ class CTRegressor():
         y_hat_new = new_estimator.predict(X)
 
         return (np.sum((y-y_hat_old)**2 - (y-y_hat_new)**2))/X[0].shape[0]
+
 
     def predict(self, Xs):
         """
