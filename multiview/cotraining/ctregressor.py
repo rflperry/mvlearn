@@ -80,7 +80,7 @@ class CTRegressor(BaseCoTrainEstimator):
         ----------
         [1] Zhou, Z. H., & Li, M. (2005, July). Semi-Supervised Regression
         with Co-Training. In IJCAI (Vol. 5, pp. 908-913).
-        
+
         [2] Blum, A., & Mitchell, T. (1998, July). Combining labeled and
         unlabeled_pool data with co-training. In Proceedings of the eleventh
         annual conference on Computational learning theory (pp. 92-100). ACM.
@@ -213,7 +213,7 @@ class CTRegressor(BaseCoTrainEstimator):
                 new_y = np.concatenate((y[L].copy(), np.array(y_hat2[sample]).reshape(1,)))
                 new_estimator = KNeighborsRegressor(n_neighbors=self.k_neighbors_, p=self.p_[1])
                 new_estimator.fit(X2[new_L], new_y)
-                delta_MSE2.append(self.estimate_delta_MSE_(self.estimator2, new_estimator, (X2[L])[neigh], (y[L])[neigh])) 
+                delta_MSE2.append(self.estimate_delta_MSE_(self.estimator2, new_estimator, (X2[L])[neigh], (y[L])[neigh]))
 
             # find top 2 in case overlap with view 1 selection
             best_delta_idx = np.argsort(delta_MSE2)[-2:][::-1]
@@ -293,7 +293,7 @@ class CTRegressor(BaseCoTrainEstimator):
 
         Returns
         -------
-        y : array-like (n_samples,)
+        y_pred : array-like (n_samples,)
             The estimated values.
         """
 
@@ -301,5 +301,5 @@ class CTRegressor(BaseCoTrainEstimator):
                       multiview=True,
                       enforce_views=self.n_views_)
 
-        return self.regressor_weights_[0] * self.estimator1.predict(Xs[0])
-                + self.regressor_weights_[1] * self.estimator2.predict(Xs[1])
+        return self.regressor_weights_[0] * self.estimator1.predict(Xs[0]) +\
+                 self.regressor_weights_[1] * self.estimator2.predict(Xs[1])
