@@ -101,7 +101,6 @@ class CTRegressor(BaseCoTrainEstimator):
 
         self.regressor_weights_ = regressor_weights
 
-
     def fit(
             self,
             Xs,
@@ -177,27 +176,40 @@ class CTRegressor(BaseCoTrainEstimator):
 
             if X_test is not None:
                 y_hat_test = self.predict(X_test)
-                iter_errors.append(((np.linalg.norm(y_hat_test - y_test))**2)/X_test[0].shape[0])
+                iter_errors.append(((np.linalg.norm(y_hat_test - y_test))**2) /
+                                   X_test[0].shape[0])
                 y_hat_test1 = self.estimator1.predict(X_test[0])
-                iter_errors1.append(((np.linalg.norm(y_hat_test1 - y_test))**2)/X_test[0].shape[0])
+                iter_errors1.append(
+                    ((np.linalg.norm(y_hat_test1 - y_test))**2) /
+                    X_test[0].shape[0])
                 y_hat_test2 = self.estimator2.predict(X_test[1])
-                iter_errors2.append(((np.linalg.norm(y_hat_test2 - y_test))**2)/X_test[0].shape[0])
+                iter_errors2.append(
+                    ((np.linalg.norm(y_hat_test2 - y_test))**2) /
+                    X_test[0].shape[0])
 
             y_hat1 = self.estimator1.predict(X1[unlabeled_pool])
             y_hat2 = self.estimator2.predict(X2[unlabeled_pool])
 
-            neighbors1 = (self.estimator1.kneighbors(X1[unlabeled_pool], n_neighbors=self.k_neighbors_))[1]
-            neighbors2 = (self.estimator1.kneighbors(X2[unlabeled_pool], n_neighbors=self.k_neighbors_))[1]
+            neighbors1 = (self.estimator1.kneighbors(X1[unlabeled_pool],
+                          n_neighbors=self.k_neighbors_))[1]
+            neighbors2 = (self.estimator1.kneighbors(X2[unlabeled_pool],
+                          n_neighbors=self.k_neighbors_))[1]
 
             # find sample in each view which lowers the MSE the most
             delta_MSE1 = []
-            for sample, (u, neigh) in enumerate(zip(unlabeled_pool, neighbors1)):
+            for sample, (u, neigh) in enumerate(zip(unlabeled_pool,
+                                                    neighbors1)):
                 new_L = L.copy()
                 new_L.append(u)
-                new_y = np.concatenate((y[L].copy(), np.array(y_hat1[sample]).reshape(1,)))
-                new_estimator = KNeighborsRegressor(n_neighbors=self.k_neighbors_, p=self.p_[0])
+                new_y = np.concatenate((y[L].copy(),
+                                        np.array(y_hat1[sample]).reshape(1,)))
+                new_estimator = KNeighborsRegressor(
+                    n_neighbors=self.k_neighbors_, p=self.p_[0])
                 new_estimator.fit(X1[new_L], new_y)
-                delta_MSE1.append(self.estimate_delta_MSE_(self.estimator1, new_estimator, (X1[L])[neigh], (y[L])[neigh]))
+                delta_MSE1.append(self.estimate_delta_MSE_(self.estimator1,
+                                                           new_estimator,
+                                                           (X1[L])[neigh],
+                                                           (y[L])[neigh]))
 
             best_delta_idx = np.argmin(delta_MSE1)
             now_labeled = []
@@ -207,17 +219,24 @@ class CTRegressor(BaseCoTrainEstimator):
                 add_labels.append(y_hat1[best_delta_idx])
 
             delta_MSE2 = []
-            for sample, (u, neigh) in enumerate(zip(unlabeled_pool, neighbors2)):
+            for sample, (u, neigh) in enumerate(zip(unlabeled_pool,
+                                                    neighbors2)):
                 new_L = L.copy()
                 new_L.append(u)
-                new_y = np.concatenate((y[L].copy(), np.array(y_hat2[sample]).reshape(1,)))
-                new_estimator = KNeighborsRegressor(n_neighbors=self.k_neighbors_, p=self.p_[1])
+                new_y = np.concatenate((y[L].copy(),
+                                        np.array(y_hat2[sample]).reshape(1,)))
+                new_estimator = KNeighborsRegressor(
+                    n_neighbors=self.k_neighbors_, p=self.p_[1])
                 new_estimator.fit(X2[new_L], new_y)
-                delta_MSE2.append(self.estimate_delta_MSE_(self.estimator2, new_estimator, (X2[L])[neigh], (y[L])[neigh]))
+                delta_MSE2.append(self.estimate_delta_MSE_(self.estimator2,
+                                                           new_estimator,
+                                                           (X2[L])[neigh],
+                                                           (y[L])[neigh]))
 
             # find top 2 in case overlap with view 1 selection
             best_delta_idx = np.argsort(delta_MSE2)[-2:][::-1]
-            if delta_MSE2[best_delta_idx[0]] > 0 and unlabeled_pool[best_delta_idx[0]] not in now_labeled:
+            if delta_MSE2[best_delta_idx[0]] > 0 and \
+               unlabeled_pool[best_delta_idx[0]] not in now_labeled:
                 now_labeled.append(unlabeled_pool[best_delta_idx[0]])
                 add_labels.append(y_hat1[best_delta_idx[0]])
             elif delta_MSE2[best_delta_idx[1]] > 0:
@@ -227,7 +246,6 @@ class CTRegressor(BaseCoTrainEstimator):
             # create new labels for new additions to the labeled group
             for x, y_hat in zip(now_labeled, add_labels):
                 y[x] = y_hat
-                #L.extend([x])
                 L.append(x)
 
             # remove newly labeled samples from unlabeled_pool
@@ -245,7 +263,6 @@ class CTRegressor(BaseCoTrainEstimator):
         self.estimator2.fit(X2[L], y[L])
 
         return iter_errors1, iter_errors2, iter_errors
-
 
     def estimate_delta_MSE_(self, old_estimator, new_estimator, X, y):
         """
@@ -279,7 +296,6 @@ class CTRegressor(BaseCoTrainEstimator):
 
         return (np.sum((y-y_hat_old)**2 - (y-y_hat_new)**2))/X[0].shape[0]
 
-
     def predict(self, Xs):
         """
         Predict the regression output of the examples in the two input views.
@@ -302,4 +318,4 @@ class CTRegressor(BaseCoTrainEstimator):
                       enforce_views=self.n_views_)
 
         return self.regressor_weights_[0] * self.estimator1.predict(Xs[0]) +\
-                 self.regressor_weights_[1] * self.estimator2.predict(Xs[1])
+            self.regressor_weights_[1] * self.estimator2.predict(Xs[1])
