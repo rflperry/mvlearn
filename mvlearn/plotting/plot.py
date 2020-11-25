@@ -1,16 +1,4 @@
-# Copyright 2019 NeuroData (http://neurodata.io)
-#
-# Licensed under the Apache License, Version 2.0 (the "License");
-# you may not use this file except in compliance with the License.
-# You may obtain a copy of the License at
-#
-#     http://www.apache.org/licenses/LICENSE-2.0
-#
-# Unless required by applicable law or agreed to in writing, software
-# distributed under the License is distributed on an "AS IS" BASIS,
-# WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
-# See the License for the specific language governing permissions and
-# limitations under the License.
+# License: MIT
 
 import matplotlib.pyplot as plt
 import seaborn as sns
@@ -56,7 +44,7 @@ def crossviews_plot(
         Sets the title of the grid.
     cmap : String, default=None
         Colormap argument for matplotlib.pyplot.scatter.
-    show : boolean, default=True
+    show : boolean, default=False
         Shows the plots if true. Returns the objects otherwise.
     context : one of {'paper', 'notebook', 'talk', 'poster, None},
         default='notebook'
@@ -105,7 +93,8 @@ def crossviews_plot(
 
     fig, axes = plt.subplots(n, n, figsize=figsize, **fig_kwargs)
     sns.set_context(context)
-
+    if n == 1:
+        axes = np.asarray([axes])
     for i, ax in enumerate(axes.flatten()):
         dim2 = dimensions[int(i / n)]
         dim1 = dimensions[i % n]

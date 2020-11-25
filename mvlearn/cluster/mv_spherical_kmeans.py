@@ -1,16 +1,4 @@
-# Copyright 2019 NeuroData (http://neurodata.io)
-#
-# Licensed under the Apache License, Version 2.0 (the "License");
-# you may not use this file except in compliance with the License.
-# You may obtain a copy of the License at
-#
-#     http://www.apache.org/licenses/LICENSE-2.0
-#
-# Unless required by applicable law or agreed to in writing, software
-# distributed under the License is distributed on an "AS IS" BASIS,
-# WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
-# See the License for the specific language governing permissions and
-# limitations under the License.
+# License: MIT
 #
 # Implements multi-view kmeans clustering algorithm for data with 2-views.
 
@@ -21,8 +9,8 @@ from sklearn.preprocessing import normalize
 
 
 class MultiviewSphericalKMeans(MultiviewKMeans):
+    r'''An implementation of multi-view spherical K-Means.
 
-    r'''
     An implementation of multi-view spherical K-Means using the
     co-EM framework as described in [#2Clu]_. This algorithm is
     most suitable for cases in which the different views of data
@@ -43,19 +31,6 @@ class MultiviewSphericalKMeans(MultiviewKMeans):
         Determines random number generation for initializing centroids.
         Can seed the random number generator with an int.
 
-    patience : int, optional, default=5
-        The number of EM iterations with no decrease in the objective
-        function after which the algorithm will terminate.
-
-    max_iter : int, optional, default=None
-        The maximum number of EM iterations to run before
-        termination.
-
-    n_init : int, optional, default=5
-        Number of times the k-means algorithm will run on different
-        centroid seeds. The final result will be the best output of
-        n_init runs with respect to total inertia across all views.
-
     init : {'k-means++', 'random'} or list of array-likes, default='k-means++'
         Method of initializing centroids.
 
@@ -71,19 +46,42 @@ class MultiviewSphericalKMeans(MultiviewKMeans):
         n_features_i is the number of features in the ith view of the input
         data.
 
+    patience : int, optional, default=5
+        The number of EM iterations with no decrease in the objective
+        function after which the algorithm will terminate.
+
+    max_iter : int, optional, default=None
+        The maximum number of EM iterations to run before
+        termination.
+
+    n_init : int, optional, default=5
+        Number of times the k-means algorithm will run on different
+        centroid seeds. The final result will be the best output of
+        n_init runs with respect to total inertia across all views.
+
+    tol : float, default=1e-4
+        Relative tolerance with regards to inertia to declare convergence.
+
+    n_jobs : int, default=None
+        The number of jobs to use for computation. This works by computing
+        each of the n_init runs in parallel.
+        None means 1. -1 means using all processors.
+
     Attributes
     ----------
-    centroids_ : list of array-likes
-        - centroids_ length: n_views
-        - centroids_[i] shape: (n_clusters, n_features_i)
+    labels_ : array-like, shape (n_samples)
+        Cluster labels for each sample in the fitted data.
 
-        The cluster centroids for each of the two views. centroids_[0]
-        corresponds to the centroids of view 1 and centroids_[1] corresponds
-        to the centroids of view 2.
+    centroids_ : list of array-likes
+        ``centroids_`` length: n_views
+        ``centroids_[i]`` shape: (n_clusters, n_features_i)
+
+        The cluster centroids for each of the two views. ``centroids_[0]``
+        corresponds to the centroids of view 1 and ``centroids_[1]``
+        corresponds to the centroids of view 2.
 
     Notes
     -----
-
     Multi-view spherical k-means clustering adapts the traditional spherical
     kmeans clustering algorithm to handle two views of data. This algorithm
     is similar to the mult-view k-means algorithm, except it uses cosine
@@ -119,11 +117,12 @@ class MultiviewSphericalKMeans(MultiviewKMeans):
     '''
 
     def __init__(self, n_clusters=2, random_state=None, init='k-means++',
-                 patience=5, max_iter=None, n_init=5):
+                 patience=5, max_iter=None, n_init=5, tol=0.0001,
+                 n_jobs=None):
 
         super().__init__(n_clusters=n_clusters, random_state=random_state,
                          init=init, patience=patience, max_iter=max_iter,
-                         n_init=n_init)
+                         n_init=n_init, tol=tol, n_jobs=n_jobs)
 
     def _compute_dist(self, X, Y):
 
@@ -316,7 +315,7 @@ class MultiviewSphericalKMeans(MultiviewKMeans):
 
         return Xs
 
-    def fit(self, Xs):
+    def fit(self, Xs, y=None):
 
         r'''
         Fit the cluster centroids to the data.
@@ -330,6 +329,9 @@ class MultiviewSphericalKMeans(MultiviewKMeans):
             This list must be of size 2, corresponding to the two views of
             the data. The two views can each have a different number of
             features, but they must have the same number of samples.
+
+        y : Ignored
+            Not used, present for API consistency by convention.
 
         Returns
         -------

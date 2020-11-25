@@ -35,9 +35,13 @@ an issue if you have found a bug or wish to see a feature implemented.
 In case you experience issues using this package, do not hesitate to submit a
 ticket to the
 <<<<<<< HEAD
+<<<<<<< HEAD
 `Bug Tracker <https://github.com/neurodata/multiview/issues>`_. You are
 =======
 `Bug Tracker <https://github.com/neurodata/mvlearn/issues>`_. You are
+>>>>>>> master
+=======
+`Bug Tracker <https://github.com/mvlearn/mvlearn/issues>`_. You are
 >>>>>>> master
 also welcome to post feature requests or pull requests.
 
@@ -46,11 +50,16 @@ following rules before submitting:
 
 -  Verify that your issue is not being currently addressed by other
 <<<<<<< HEAD
+<<<<<<< HEAD
    `issues <https://github.com/neurodata/multiview/issues?q=>`_
    or `pull requests <https://github.com/neurodata/multiview/pulls?q=>`_.
 =======
    `issues <https://github.com/neurodata/mvlearn/issues?q=>`_
    or `pull requests <https://github.com/neurodata/mvlearn/pulls?q=>`_.
+>>>>>>> master
+=======
+   `issues <https://github.com/mvlearn/mvlearn/issues?q=>`_
+   or `pull requests <https://github.com/mvlearn/mvlearn/pulls?q=>`_.
 >>>>>>> master
 
 -  If you are submitting a bug report, we strongly encourage you to follow the guidelines in
@@ -76,7 +85,11 @@ When you submit an issue to `Github
 ### How to make a good bug report
 
 When you submit an issue to `Github
+<<<<<<< HEAD
 <https://github.com/neurodata/mvlearn/issues>`__, please do your best to
+>>>>>>> master
+=======
+<https://github.com/mvlearn/mvlearn/issues>`__, please do your best to
 >>>>>>> master
 follow these guidelines! This will make it a lot easier to provide you with good
 feedback:
@@ -135,7 +148,11 @@ repository on GitHub, clone, and develop on a branch. Steps:
 The preferred workflow for contributing to mvlearn is to fork the main
 repository on GitHub, clone, and develop on a branch. Steps: 
 
+<<<<<<< HEAD
 1. Fork the `project repository <https://github.com/neurodata/mvlearn>`__ by clicking
+>>>>>>> master
+=======
+1. Fork the `project repository <https://github.com/mvlearn/mvlearn>`__ by clicking
 >>>>>>> master
    on the ‘Fork’ button near the top right of the page. This creates a copy
    of the code under your GitHub user account. For more details on how to

@@ -12,18 +12,21 @@ implemented.
 
 In case you experience issues using this package, do not hesitate to
 submit a ticket to the
-`Bug Tracker <https://github.com/neurodata/mvlearn/issues>`_. You
+`Bug Tracker <https://github.com/mvlearn/mvlearn/issues>`_. You
 are also welcome to post feature requests or pull requests.
 
 It is recommended to check that your issue complies with the following
 rules before submitting:
 
 -  Verify that your issue is not being currently addressed by other
-   `issues <https://github.com/neurodata/mvlearn/issues?q=>`_ or
-   `pull requests <https://github.com/neurodata/mvlearn/pulls?q=>`_.
+   `issues <https://github.com/mvlearn/mvlearn/issues?q=>`_ or
+   `pull requests <https://github.com/mvlearn/mvlearn/pulls?q=>`_.
 
 -  If you are submitting a bug report, we strongly encourage you to
    follow the guidelines in :ref:`filing_bugs`.
+
+-  Always make sure your code follows the general :ref:`guidelines` 
+   and adheres to the :ref:`api_of_mvlearn_objects`.
 
 .. _filing_bugs:
 
@@ -31,7 +34,7 @@ How to make a good bug report
 ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
 
 When you submit an issue to
-`Github <https://github.com/neurodata/mvlearn/issues>`_, please
+`Github <https://github.com/mvlearn/mvlearn/issues>`_, please
 do your best to follow these guidelines! This will make it a lot easier
 to provide you with good feedback:
 
@@ -70,7 +73,7 @@ The preferred workflow for contributing to mvlearn is to fork the main
 repository on GitHub, clone, and develop on a branch. Steps:
 
 1. Fork the
-   `project repository <https://github.com/neurodata/mvlearn>`_
+   `project repository <https://github.com/mvlearn/mvlearn>`_
    by clicking on the ‘Fork’ button near the top right of the page. This
    creates a copy of the code under your GitHub user account. For more
    details on how to fork a repository see
@@ -82,7 +85,8 @@ repository on GitHub, clone, and develop on a branch. Steps:
 
    .. code:: bash
 
-       $ git clone git@github.com:YourLogin/mvlearn.git $ cd mvlearn
+       $ git clone git@github.com:YourLogin/mvlearn.git
+       $ cd mvlearn
 
 
 3. Create a ``feature`` branch to hold your development changes:
@@ -100,7 +104,8 @@ repository on GitHub, clone, and develop on a branch. Steps:
 
    .. code:: bash
 
-       $ git add modified_files $ git commit
+       $ git add modified_files
+       $ git commit
 
    to record your changes in Git, then push the changes to your GitHub
    account with:
@@ -157,7 +162,10 @@ before you submit a pull request:
 
    .. code:: bash
 
-       $ pip install black $ black path/to/module.py
+       $ pip install black
+       $ black path/to/module.py
+
+.. _guidelines:
 
 Guidelines
 ----------
@@ -182,8 +190,10 @@ guidelines. Refer to the
 `example.py <https://numpydoc.readthedocs.io/en/latest/example.html#example>`__
 provided by numpydoc.
 
+.. _api_of_mvlearn_objects:
+
 API of mvlearn Objects
-------------------------
+----------------------
 
 Estimators
 ~~~~~~~~~~
@@ -191,9 +201,17 @@ Estimators
 The main mvlearn object is the estimator and its documentation draws
 mainly from the formatting of sklearn’s estimator object. An estimator
 is an object that fits a set of training data and generates some new
-view of the data. In contributing, borrow from sklearn requirements as
+view of the data. Each module in mvlearn contains a main base class
+(found in ``module_name.base``) which all estimators in that module
+should implement. Each of these base classes implements
+sklearn.base.BaseEstimator. If you are contributing a new estimator,
+be sure that it properly implements the base class
+of the module it is contained within.
+
+When contributing, borrow from sklearn requirements as
 much as possible and utilize their checks to automatically check the
-suitability of inputted data.
+suitability of inputted data, or use the checks available in
+``mvlearn.utils`` such as ``check_Xs``.
 
 Instantiation
 ^^^^^^^^^^^^^
@@ -217,7 +235,8 @@ implementation of ``__init__`` looks like
 Fitting
 ^^^^^^^
 
-All estimators implement the fit method to make some estimation, either:
+All estimators should implement the ``fit(Xs, y=None)`` method to
+make some estimation, which is called with:
 
 .. code:: python
 
@@ -252,29 +271,75 @@ samples (rows) but the number of features (columns) may differ.
 The ``fit`` method should return the object (``self``) so that simple
 one line processes can be written.
 
-All attributed calculated in the ``fit`` method should be saved with a
+All attributes calculated in the ``fit`` method should be saved with a
 trailing underscore to distinguish them from the constants passes to
 ``__init__``. They are overwritten every time ``fit`` is called.
 
 Additional Functionality
 ~~~~~~~~~~~~~~~~~~~~~~~~
 
-Transformer
-^^^^^^^^^^^
+Transformers
+^^^^^^^^^^^^
 
-A transformer object modifies the data it is given. An estimator may
-also be a transformer that learns the transformation parameters. The
-transformer object implements the method
-
-.. code:: python
-
-   new_data = transformer.transform(Xs)
-
-and if the fit method must be called first,
+A ``transformer`` object modifies the data it is given and by default outputs
+multiview data, a transformation of each input view. The object also has a
+``multiview_output`` parameter in the constructor that may be set to ``False``
+so as to return a single view, joint transformation instead. An estimator may
+also be a transformer that learns the transformation parameters. The transformer
+object implements the ``transform`` method, i.e.
 
 .. code:: python
 
-   new_data = transformer.fit_transform(Xs, y)
+   Xs_transformed = transformer.transform(Xs)
+
+which follows a call to ``fit``. One may alternatively perform both in the
+single call
+
+.. code:: python
+
+   Xs_transformed = transformer.fit_transform(Xs, y)
 
 It may be more efficient in some cases to compute the latter example
 rather than call ``fit`` and ``transform`` separately.
+
+Predictors
+^^^^^^^^^^
+
+Similarly, a ``predictor`` object makes predictions based on the
+data it is given and outputs a single array of sample-specific predictions
+based on all views. An estimator may also be a predictor that learns
+the prediction parameters. The predictor object implements
+the ``predict`` method, i.e.
+
+.. code:: python
+
+   y_predicted = predictor.predict(Xs)
+
+which follows a call to ``fit``. One may alternatively perform both in the
+single call
+
+.. code:: python
+
+   y_predicted = predictor.fit_predict(Xs, y)
+
+It may be more efficient in some cases to compute the latter example
+rather than call ``fit`` and ``predict`` separately.
+
+Mergers
+^^^^^^^
+
+In some cases, it is helpful to extract a single view representation of
+multiple views, as when one is integrating mvlearn estimators with an
+sklearn pipeline. A ``merger`` object implements a ``transform`` method
+which takes in multiview data and returns a single view representation, i.e.
+
+.. code:: python
+
+   X_merged = merger.transform(Xs)
+
+which follows a call to ``fit`` and as above, one can perform both functions
+in the single, potentially more efficient call
+
+.. code:: python
+
+   X_merged = merger.fit_transform(Xs)

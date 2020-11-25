@@ -1,17 +1,3 @@
-# Copyright 2019 NeuroData (http://neurodata.io)
-#
-# Licensed under the Apache License, Version 2.0 (the "License");
-# you may not use this file except in compliance with the License.
-# You may obtain a copy of the License at
-#
-#     http://www.apache.org/licenses/LICENSE-2.0
-#
-# Unless required by applicable law or agreed to in writing, software
-# distributed under the License is distributed on an "AS IS" BASIS,
-# WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
-# See the License for the specific language governing permissions and
-# limitations under the License.
-
 # Original work Copyright (c) 2016 Vahid Noroozi
 # Modified work Copyright 2019 Zhanghao Wu
 
@@ -27,9 +13,10 @@
 
 import warnings
 import sys
-from sklearn.utils import check_X_y, check_array
-from sklearn.exceptions import NotFittedError
 import numpy as np
+
+from sklearn.exceptions import NotFittedError
+
 try:
     import torch
     import torch.nn as nn
@@ -37,9 +24,10 @@ try:
 except ModuleNotFoundError as error:
     print(f'Error: {error}. torch dependencies required for this function. \
     Please consult the mvlearn installation instructions at \
-    https://github.com/neurodata/mvlearn to correctly install torch \
+    https://github.com/mvlearn/mvlearn to correctly install torch \
     dependencies.')
     sys.exit(1)
+
 from .base import BaseEmbed
 from ..utils.utils import check_Xs
 
@@ -467,23 +455,14 @@ class DCCA(BaseEmbed):
         The sizes of the layers of the deep network applied to view 2 before
         CCA. Does not need to have the same hidden layer architecture as
         layer_sizes1, but the final dimensionality must be the same.
-    use_all_singular_values_ : boolean (default=False)
-        Whether or not to use all the singular values in the CCA computation
-        to calculate the loss. If False, only the top n_components singular
-        values are used.
     device_ : string
         The torch device for processing.
-    epoch_num_ : int (positive)
-        The max number of epochs to train the deep networks.
     batch_size_ : int (positive)
         Batch size for training the deep networks.
     learning_rate_ : float (positive)
         Learning rate for training the deep networks.
     reg_par_ : float (positive)
         Weight decay parameter used in the RMSprop optimizer.
-    print_train_log_info_ : boolean, default=False
-        Whether or not to print the logging info (training loss at each epoch)
-        when calling DCCA.fit().
     deep_model_ : ``DeepPairedNetworks`` object
         2 view Deep CCA object used to transform 2 views of data together.
     linear_cca_ : ``linear_cca`` object
@@ -496,12 +475,6 @@ class DCCA(BaseEmbed):
         between outputs of transformed views.
     optimizer_ : torch.optim.RMSprop object
         Optimizer used to train the networks.
-    tolerance_ : float, (positive)
-        Threshold difference between successive iteration losses to define
-        convergence and stop training.
-    is_fit_ : boolean
-        Whether or not ``.fit()`` has been called yet. Permits
-        ``.transform()`` to be called.
 
     Warns
     -----
@@ -608,14 +581,14 @@ class DCCA(BaseEmbed):
         self.input_size2_ = input_size2
         self.n_components_ = n_components
 
-        self.use_all_singular_values_ = use_all_singular_values
+        self.use_all_singular_values = use_all_singular_values
         self.device_ = device
-        self.epoch_num_ = epoch_num
+        self.epoch_num = epoch_num
         self.batch_size_ = batch_size
         self.learning_rate_ = learning_rate
         self.reg_par_ = reg_par
-        self.print_train_log_info_ = print_train_log_info
-        self.tolerance_ = tolerance
+        self.print_train_log_info = print_train_log_info
+        self.tolerance = tolerance
 
         self.deep_model_ = DeepPairedNetworks(layer_sizes1, layer_sizes2,
                                               input_size1, input_size2,
@@ -630,7 +603,7 @@ class DCCA(BaseEmbed):
         self.optimizer_ = torch.optim.RMSprop(self.model_.parameters(),
                                               lr=self.learning_rate_,
                                               weight_decay=self.reg_par_)
-        self.is_fit_ = False
+        self.is_fit = False
 
     def fit(self, Xs, y=None):
         r"""
@@ -644,7 +617,8 @@ class DCCA(BaseEmbed):
              - Xs[i] shape: (n_samples, n_features_i)
             The data to fit to. Each view will receive its own embedding.
 
-        y : Unused parameter for base class fit_transform compliance
+        y : ignored
+            Included for API compliance.
 
         Returns
         -------
@@ -677,8 +651,8 @@ class DCCA(BaseEmbed):
         epoch = 0
         current_loss = np.inf
         train_loss = 1
-        while (current_loss - train_loss > self.tolerance_)\
-                and epoch < self.epoch_num_:
+        while (current_loss - train_loss > self.tolerance)\
+                and epoch < self.epoch_num:
             self.model_.train()
             batch_idxs = list(BatchSampler(RandomSampler(range(data_size)),
                                            batch_size=self.batch_size_,
@@ -694,20 +668,20 @@ class DCCA(BaseEmbed):
                 loss.backward()
                 self.optimizer_.step()
             train_loss = np.mean(train_losses)
-            if self.print_train_log_info_:
+            if self.print_train_log_info:
                 info_string = "Epoch {:d}/{:d},"\
                     " training_loss: {:.4f}"
-                print(info_string.format(epoch + 1, self.epoch_num_,
+                print(info_string.format(epoch + 1, self.epoch_num,
                       train_loss))
 
             torch.save(self.model_.state_dict(), checkpoint)
             epoch += 1
 
         # Check if converged before max iterations
-        if epoch == self.epoch_num_:
+        if epoch == self.epoch_num:
             message = 'Loss did not converge before {} epochs. Consider'\
                 ' increasing epoch_num to train for'\
-                ' longer.'.format(self.epoch_num_)
+                ' longer.'.format(self.epoch_num)
             warnings.warn(message, Warning)
 
         # train_linear_cca
@@ -717,7 +691,7 @@ class DCCA(BaseEmbed):
         checkpoint_ = torch.load(checkpoint)
         self.model_.load_state_dict(checkpoint_)
 
-        self.is_fit_ = True
+        self.is_fit = True
         return self
 
     def transform(self, Xs, return_loss=False):
@@ -744,7 +718,7 @@ class DCCA(BaseEmbed):
             transformed views. Only returned if ``return_loss=True``.
         """
 
-        if not self.is_fit_:
+        if not self.is_fit:
             raise NotFittedError("Must call fit function before transform")
         Xs = check_Xs(Xs, multiview=True)
         x1 = torch.DoubleTensor(Xs[0])

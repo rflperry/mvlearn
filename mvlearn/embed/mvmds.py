@@ -1,16 +1,4 @@
-# Copyright 2019 NeuroData (http://neurodata.io)
-#
-# Licensed under the Apache License, Version 2.0 (the "License");
-# you may not use this file except in compliance with the License.
-# You may obtain a copy of the License at
-#
-#     http://www.apache.org/licenses/LICENSE-2.0
-#
-# Unless required by applicable law or agreed to in writing, software
-# distributed under the License is distributed on an "AS IS" BASIS,
-# WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
-# See the License for the specific language governing permissions and
-# limitations under the License.
+# License: MIT
 
 from .base import BaseEmbed
 from ..utils.utils import check_Xs
@@ -34,7 +22,7 @@ class MVMDS(BaseEmbed):
 
     Parameters
     ----------
-    n_components : int (positive), default=None
+    n_components : int (positive), default=2
         Represents the number of components that the user would like to
         be returned from the algorithm. This value must be greater than
         0 and less than the number of samples within each view.
@@ -42,9 +30,18 @@ class MVMDS(BaseEmbed):
     num_iter: int (positive), default=15
         Number of iterations stepwise estimation goes through.
 
+    dissimilarity : {'euclidean', 'precomputed'}, default='euclidean'
+        Dissimilarity measure to use:
+
+        'euclidean':
+        Pairwise Euclidean distances between points in the dataset.
+
+        'precomputed':
+        Xs is treated as pre-computed dissimilarity matrices.
+
     Attributes
     ----------
-    components: numpy.ndarray, shape(n_samples, n_components)
+    components_: numpy.ndarray, shape(n_samples, n_components)
         Joint transformed MVMDS components of the input views.
 
     Notes
@@ -112,13 +109,31 @@ class MVMDS(BaseEmbed):
             Principal Components.” Computational Statistics &amp; Data
             Analysis, vol. 54, no. 12, 2010, pp. 3446–3457.,
             doi:10.1016/j.csda.2010.03.010.
+
+    .. [#2MVMDS] Samir Kanaan-Izquierdo, Andrey Ziyatdinov,
+        Maria Araceli Burgueño, Alexandre Perera-Lluna, Multiview: a software
+        package for multiview pattern recognition methods, Bioinformatics,
+        Volume 35, Issue 16, 15 August 2019, Pages 2877–2879
+
     """
-    def __init__(self, n_components=None, num_iter=15):
+    def __init__(self, n_components=2, num_iter=15, dissimilarity='euclidean'):
 
         super().__init__()
-        self.components = None
+        self.components_ = None
         self.n_components = n_components
         self.num_iter = num_iter
+        self.dissimilarity = dissimilarity
+
+        if (self.num_iter) <= 0:
+            raise ValueError('The number of iterations must be greater than 0')
+
+        if (self.n_components) <= 0:
+            raise ValueError('The number of components must be greater than 0 '
+                             + 'and less than the number of features')
+
+        if self.dissimilarity not in ['euclidean', 'precomputed']:
+            raise ValueError('The parameter `dissimilarity` must be one of \
+                {`euclidean`, `precomputed`}')
 
     def _commonpcs(self, Xs):
         """
@@ -154,7 +169,7 @@ class MVMDS(BaseEmbed):
         for i in np.arange(views):
             s = s + (n_num[i] * Xs[i])
 
-        e1, e2 = np.linalg.eigh(s)
+        _, e2 = np.linalg.eigh(s)
 
         # Orders the eigenvalues
         q0 = e2[:, ::-1]
@@ -204,7 +219,7 @@ class MVMDS(BaseEmbed):
 
         return(components)
 
-    def fit(self, Xs):
+    def fit(self, Xs, y=None):
         """
         Calculates dimensionally reduced components by inputting the Euclidean
         distances of each view, double centering them, and using the _commonpcs
@@ -216,6 +231,8 @@ class MVMDS(BaseEmbed):
         Xs: list of array-likes or numpy.ndarray
                 - Xs length: n_views
                 - Xs[i] shape: (n_samples, n_features_i)
+        y : ignored
+            Included for API compliance.
 
         """
 
@@ -226,29 +243,44 @@ class MVMDS(BaseEmbed):
                           + 'dataset. ' + str(self.n_components)
                           + ' components were computed instead.')
 
-        if (self.num_iter) <= 0:
-            raise ValueError('The number of iterations must be greater than 0')
-
-        if (self.n_components) <= 0:
-            raise ValueError('The number of components must be greater than 0 '
-                             + 'and less than the number of features')
-
         Xs = check_Xs(Xs, multiview=True)
 
         mat = np.ones(shape=(len(Xs), len(Xs[0]), len(Xs[0])))
 
         # Double centering each view as in single-view MDS
-        for i in np.arange(len(Xs)):
-            view = euclidean_distances(Xs[i])
-            view_squared = np.power(np.array(view), 2)
 
-            J = np.eye(len(view)) - (1/len(view))*np.ones(view.shape)
-            B = -(1/2) * np.matmul(np.matmul(J, view_squared), J)
-            mat[i] = B
+        if (self.dissimilarity == 'euclidean'):
 
-        self.components = self._commonpcs(mat)
+            for i in np.arange(len(Xs)):
+                view = euclidean_distances(Xs[i])
+                view_squared = np.power(np.array(view), 2)
 
-    def fit_transform(self, Xs):
+                J = np.eye(len(view)) - (1/len(view))*np.ones(view.shape)
+                B = -(1/2) * J @ view_squared @ J
+                mat[i] = B
+
+        # If user wants to input special distance matrix
+
+        elif (self.dissimilarity == 'precomputed'):
+            for i in np.arange(len(Xs)):
+                if (Xs[i].shape[0] != Xs[i].shape[1]):
+                    raise ValueError('The input distance matrix must be '
+                                     + 'a square matrix')
+                else:
+                    view = Xs[i]
+                    view_squared = np.power(np.array(view), 2)
+                    J = np.eye(len(view)) - (1/len(view))*np.ones(view.shape)
+                    B = -(1/2) * J @ view_squared @ J
+                    mat[i] = B
+        else:
+            raise ValueError('The parameter `dissimilarity` must be one of \
+                {`euclidean`, `precomputed`}')
+
+        self.components_ = self._commonpcs(mat)
+
+        return self
+
+    def fit_transform(self, Xs, y=None):
 
         """"
         Embeds data matrix(s) using fitted projection matrices
@@ -260,6 +292,8 @@ class MVMDS(BaseEmbed):
             - Xs length: n_views
             - Xs[i] shape: (n_samples, n_features_i)
             The data to embed based on the fit function.
+        y : ignored
+            Included for API compliance.
 
         Returns
         -------
@@ -269,4 +303,4 @@ class MVMDS(BaseEmbed):
         Xs = check_Xs(Xs)
         self.fit(Xs)
 
-        return self.components
+        return self.components_

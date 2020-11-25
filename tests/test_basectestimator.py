@@ -2,7 +2,7 @@
 # 10/21/2019
 
 import pytest
-from mvlearn.cotraining.base import BaseCoTrainEstimator
+from mvlearn.semi_supervised.base import BaseCoTrainEstimator
 from sklearn.base import BaseEstimator
 
 """
@@ -14,3 +14,4 @@ def test_base_ctclassifier():
     assert isinstance(base_clf, BaseEstimator)
     base_clf.fit([],[])
     base_clf.predict([])
+    base_clf.fit_predict([],[])

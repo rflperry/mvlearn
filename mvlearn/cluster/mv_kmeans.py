@@ -1,29 +1,19 @@
-# Copyright 2019 NeuroData (http://neurodata.io)
-#
-# Licensed under the Apache License, Version 2.0 (the "License");
-# you may not use this file except in compliance with the License.
-# You may obtain a copy of the License at
-#
-#     http://www.apache.org/licenses/LICENSE-2.0
-#
-# Unless required by applicable law or agreed to in writing, software
-# distributed under the License is distributed on an "AS IS" BASIS,
-# WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
-# See the License for the specific language governing permissions and
-# limitations under the License.
+# License: MIT
 #
 # Implements multi-view kmeans clustering algorithm for data with 2-views.
 
 import numpy as np
-from .base_kmeans import BaseKMeans
+from joblib import Parallel, delayed
+from .base import BaseCluster
 from ..utils.utils import check_Xs
 from sklearn.exceptions import NotFittedError, ConvergenceWarning
 from scipy.spatial.distance import cdist
+import warnings
 
 
-class MultiviewKMeans(BaseKMeans):
+class MultiviewKMeans(BaseCluster):
+    r'''This class implements multi-view k-means.
 
-    r'''
     This class implements multi-view k-means using the co-EM framework
     as described in [#2Clu]_. This algorithm is most suitable for cases
     in which the different views of data are conditionally independent.
@@ -43,19 +33,6 @@ class MultiviewKMeans(BaseKMeans):
         Determines random number generation for initializing centroids.
         Can seed the random number generator with an int.
 
-    patience : int, optional, default=5
-        The number of EM iterations with no decrease in the objective
-        function after which the algorithm will terminate.
-
-    max_iter : int, optional, default=None
-        The maximum number of EM iterations to run before
-        termination.
-
-    n_init : int, optional, default=5
-        Number of times the k-means algorithm will run on different
-        centroid seeds. The final result will be the best output of
-        n_init runs with respect to total inertia across all views.
-
     init : {'k-means++', 'random'} or list of array-likes, default='k-means++'
         Method of initializing centroids.
 
@@ -71,19 +48,42 @@ class MultiviewKMeans(BaseKMeans):
         n_features_i is the number of features in the ith view of the input
         data.
 
+    patience : int, optional, default=5
+        The number of EM iterations with no decrease in the objective
+        function after which the algorithm will terminate.
+
+    max_iter : int, optional, default=300
+        The maximum number of EM iterations to run before
+        termination.
+
+    n_init : int, optional, default=5
+        Number of times the k-means algorithm will run on different
+        centroid seeds. The final result will be the best output of
+        n_init runs with respect to total inertia across all views.
+
+    tol : float, default=1e-4
+        Relative tolerance with regards to inertia to declare convergence.
+
+    n_jobs : int, default=None
+        The number of jobs to use for computation. This works by computing
+        each of the n_init runs in parallel.
+        None means 1. -1 means using all processors.
+
     Attributes
     ----------
-    centroids_ : list of array-likes
-        - centroids_ length: n_views
-        - centroids_[i] shape: (n_clusters, n_features_i)
+    labels_ : array-like, shape (n_samples)
+        Cluster labels for each sample in the fitted data.
 
-        The cluster centroids for each of the two views. centroids_[0]
-        corresponds to the centroids of view 1 and centroids_[1] corresponds
-        to the centroids of view 2.
+    centroids_ : list of array-likes
+        ``centroids_`` length: n_views
+        ``centroids_[i]`` shape: (n_clusters, n_features_i)
+
+        The cluster centroids for each of the two views. ``centroids_[0]``
+        corresponds to the centroids of view 1 and ``centroids_[1]``
+        corresponds to the centroids of view 2.
 
     Notes
     -----
-
     Multi-view k-means clustering adapts the traditional k-means clustering
     algorithm to handle two views of data. This algorithm requires that a
     conditional independence assumption between views holds true. In cases
@@ -104,26 +104,27 @@ class MultiviewKMeans(BaseKMeans):
 
     Input: Unlabeled data D with 2 views
 
-        #. Initialize :math:`\Theta_0^{(2)}`, T, :math:`t = 0`.
+    #. Initialize :math:`\Theta_0^{(2)}`, T, :math:`t = 0`.
 
-        #. E step for view 2: compute expectation for hidden variables given
+    #. E step for view 2: compute expectation for hidden variables given
 
-        #. Loop until stopping criterion is true:
+    #. Loop until stopping criterion is true:
 
-            a. For v = 1 ... 2:
+        a. For v = 1 ... 2:
 
-                i. :math:`t = t + 1`
+           i. :math:`t = t + 1`
 
-                ii. M step view v: Find model parameters :math:`\Theta_t^{(v)}`
-                   that maximize the likelihood for the data given the expected
-                   values for hidden variables of view :math:`\overline{v}` of
-                   iteration :math:`t` - 1
+           ii. M step view v: Find model parameters :math:`\Theta_t^{(v)}`
+               that maximize the likelihood for the data given the expected
+               values for hidden variables of view :math:`\overline{v}` of
+               iteration :math:`t` - 1
 
-                iii. E step view :math:`v`: compute expectation for hidden
-                   variables given the model parameters :math:`\Theta_t^{(v)}`
+           iii. E step view :math:`v`: compute expectation for hidden
+                variables given the model parameters :math:`\Theta_t^{(v)}`
 
-        #. return combined :math:`\hat{\Theta} = \Theta_{t-1}^{(1)} \cup
-           \Theta_t^{(2)}`
+
+    #. return combined :math:`\hat{\Theta} = \Theta_{t-1}^{(1)} \cup
+       \Theta_t^{(2)}`
 
     The final assignment of examples to partitions is performed by assigning
     each example to the cluster with the largest averaged posterior
@@ -154,7 +155,8 @@ class MultiviewKMeans(BaseKMeans):
     '''
 
     def __init__(self, n_clusters=2, random_state=None, init='k-means++',
-                 patience=5, max_iter=None, n_init=5):
+                 patience=5, max_iter=300, n_init=5, tol=0.0001,
+                 n_jobs=None):
 
         super().__init__()
 
@@ -164,6 +166,8 @@ class MultiviewKMeans(BaseKMeans):
         self.n_init = n_init
         self.init = init
         self.max_iter = max_iter
+        self.tol = tol
+        self.n_jobs = n_jobs
         self.centroids_ = None
 
     def _compute_dist(self, X, Y):
@@ -313,7 +317,7 @@ class MultiviewKMeans(BaseKMeans):
         self.centroids_ = [None, None]
         if (len(v1_consensus) == 0):
             msg = 'No distinct cluster centroids have been found.'
-            raise ConvergenceWarning(msg)
+            warnings.warn(msg, ConvergenceWarning)
         else:
             self.centroids_[0] = np.vstack(v1_consensus)
             self.centroids_[1] = np.vstack(v2_consensus)
@@ -325,7 +329,7 @@ class MultiviewKMeans(BaseKMeans):
                        + ') found is smaller than n_clusters ('
                        + str(self.n_clusters)
                        + ').')
-                raise ConvergenceWarning(msg)
+                warnings.warn(msg, ConvergenceWarning)
 
             # Updates k if number of consensus clusters less than original
             # n_clusters value
@@ -411,7 +415,73 @@ class MultiviewKMeans(BaseKMeans):
         Xs_new = check_Xs(Xs, enforce_views=2)
         return Xs_new
 
-    def fit(self, Xs):
+    def _one_init(self, Xs):
+        r'''
+        Run the algorithm for one random initialization.
+
+        Parameters
+        ----------
+        Xs : list of array-likes or numpy.ndarray
+            - Xs length: n_views
+            - Xs[i] shape: (n_samples, n_features_i)
+
+            This list must be of size 2, corresponding to the two views of
+            the data. The two views can each have a different number of
+            features, but they must have the same number of samples.
+
+        Returns
+        -------
+        intertia: int
+            The final intertia for this run.
+
+        centroids : list of array-likes
+            - centroids length: n_views
+            - centroids[i] shape: (n_clusters, n_features_i)
+
+            The cluster centroids for each of the two views. centroids[0]
+            corresponds to the centroids of view 1 and centroids[1] corresponds
+            to the centroids of view 2.
+
+        '''
+
+        # Initialize centroids for clustering
+        centroids = self._init_centroids(Xs)
+
+        # Initializing partitions, objective value, and loop vars
+        distances = self._compute_dist(Xs[1], centroids[1])
+        parts = np.argmin(distances, axis=1).flatten()
+        partitions = [None, parts]
+        objective = [np.inf, np.inf]
+        o_funct = [None, None]
+        iter_stall = [0, 0]
+        iter_num = 0
+        max_iter = np.inf
+        if self.max_iter is not None:
+            max_iter = self.max_iter
+
+        # While objective is still decreasing and iterations < max_iter
+        while(max(iter_stall) < self.patience and iter_num < max_iter):
+
+            for vi in range(2):
+                pre_view = (iter_num + 1) % 2
+                # Switch partitions and compute maximization
+                partitions[vi], centroids[vi], o_funct[vi] = self._em_step(
+                    Xs[vi], partitions[pre_view], centroids[vi])
+            iter_num += 1
+            # Track the number of iterations without improvement
+            for view in range(2):
+                if(objective[view] - o_funct[view] > self.tol * np.abs(
+                        objective[view])):
+                    objective[view] = o_funct[view]
+                    iter_stall[view] = 0
+                else:
+                    iter_stall[view] += 1
+
+        intertia = np.sum(objective)
+
+        return intertia, centroids
+
+    def fit(self, Xs, y=None):
 
         r'''
         Fit the cluster centroids to the data.
@@ -425,6 +495,9 @@ class MultiviewKMeans(BaseKMeans):
             This list must be of size 2, corresponding to the two views of
             the data. The two views can each have a different number of
             features, but they must have the same number of samples.
+
+        y : Ignored
+            Not used, present for API consistency by convention.
 
         Returns
         -------
@@ -453,66 +526,38 @@ class MultiviewKMeans(BaseKMeans):
             raise ValueError(msg)
 
         # Type and value checking for max_iter parameter
-        max_iter = np.inf
         if self.max_iter is not None:
             if not (isinstance(self.max_iter, int) and (self.max_iter > 0)):
                 msg = 'max_iter must be a positive integer'
                 raise ValueError(msg)
-            max_iter = self.max_iter
 
         # Type and value checking for n_init parameter
         if not (isinstance(self.n_init, int) and (self.n_init > 0)):
             msg = 'n_init must be a nonnegative integer'
             raise ValueError(msg)
 
+        # Type and value checking for tol parameter
+        if not (isinstance(self.tol, float) and (self.tol >= 0)):
+            msg = 'tol must be a nonnegative float'
+            raise ValueError(msg)
+
         # If initial centroids passed in, then n_init should be 1
         n_init = self.n_init
-        if not isinstance(self.n_init, str):
+        if not isinstance(self.init, str):
             n_init = 1
 
         # Run multi-view kmeans for n_init different centroid initializations
-        min_inertia = np.inf
-        best_centroids = None
+        run_results = Parallel(n_jobs=self.n_jobs)(
+            delayed(self._one_init)(Xs) for _ in range(n_init))
 
-        for _ in range(n_init):
-
-            # Initialize centroids for clustering
-            centroids = self._init_centroids(Xs)
-
-            # Initializing partitions, objective value, and loop vars
-            distances = self._compute_dist(Xs[1], centroids[1])
-            parts = np.argmin(distances, axis=1).flatten()
-            partitions = [None, parts]
-            objective = [np.inf, np.inf]
-            o_funct = [None, None]
-            iter_stall = [0, 0]
-            iter_num = 0
-
-            # While objective is still decreasing and iterations < max_iter
-            while(max(iter_stall) < self.patience and iter_num < max_iter):
-
-                for vi in range(2):
-                    pre_view = (iter_num + 1) % 2
-                    # Switch partitions and compute maximization
-                    partitions[vi], centroids[vi], o_funct[vi] = self._em_step(
-                        Xs[vi], partitions[pre_view], centroids[vi])
-                iter_num += 1
-                # Track the number of iterations without improvement
-                for view in range(2):
-                    if(o_funct[view] < objective[view]):
-                        objective[view] = o_funct[view]
-                        iter_stall[view] = 0
-                    else:
-                        iter_stall[view] += 1
-
-            # Update min_intertia and best centroids if lower intertia
-            total_inertia = np.sum(objective)
-            if(total_inertia < min_inertia or best_centroids is None):
-                min_inertia = total_inertia
-                best_centroids = centroids
+        # Zip results and find which has max inertia
+        intertias, centroids = zip(*run_results)
+        max_ind = np.argmax(intertias)
 
         # Compute final cluster centroids
-        self._final_centroids(Xs, best_centroids)
+        self._final_centroids(Xs, centroids[max_ind])
+
+        self.labels_ = self.predict(Xs)
 
         return self
 
@@ -533,7 +578,7 @@ class MultiviewKMeans(BaseKMeans):
 
         Returns
         -------
-        predictions : array-like, shape (n_samples,)
+        labels : array-like, shape (n_samples,)
             The predicted cluster labels for each sample.
 
         '''
@@ -552,6 +597,6 @@ class MultiviewKMeans(BaseKMeans):
         dist1 = self._compute_dist(Xs[0], self.centroids_[0])
         dist2 = self._compute_dist(Xs[1], self.centroids_[1])
         dist_metric = dist1 + dist2
-        predictions = np.argmin(dist_metric, axis=1).flatten()
+        labels = np.argmin(dist_metric, axis=1).flatten()
 
-        return predictions
+        return labels

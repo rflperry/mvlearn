@@ -1,16 +1,4 @@
-# Copyright 2019 NeuroData (http://neurodata.io)
-#
-# Licensed under the Apache License, Version 2.0 (the "License");
-# you may not use this file except in compliance with the License.
-# You may obtain a copy of the License at
-#
-#     http://www.apache.org/licenses/LICENSE-2.0
-#
-# Unless required by applicable law or agreed to in writing, software
-# distributed under the License is distributed on an "AS IS" BASIS,
-# WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
-# See the License for the specific language governing permissions and
-# limitations under the License.
+# License: MIT
 
 from .base import BaseEmbed
 from ..utils.utils import check_Xs
@@ -179,8 +167,8 @@ class GCCA(BaseEmbed):
              - Xs length: n_views
              - Xs[i] shape: (n_samples, n_features_i)
             The data to fit to. Each view will receive its own embedding.
-        y : Ignored (default = None)
-            For compliance with base class
+        y : ignored
+            Included for API compliance.
 
         Returns
         -------
@@ -351,7 +339,6 @@ class GCCA(BaseEmbed):
         idx_end = 0
         projection_mats = []
         n = len(self.ranks_)
-        VV_list = []
         for i in range(n):
             idx_start = idx_end
             idx_end = idx_start + self.ranks_[i]
@@ -367,7 +354,6 @@ class GCCA(BaseEmbed):
 
         self.spatial_pattern_ = B @ np.diag(S)
         self.projection_mats_ = projection_mats
-        self.loadings_ = VV_list
 
         return self
 
@@ -407,21 +393,3 @@ class GCCA(BaseEmbed):
                     for X, proj in zip(Xs, self.projection_mats_)
                 ]
             )
-
-    def fit_transform(self, Xs):
-        r"""
-        Fits transformer to Xs and returns a transformed version of the Xs.
-        Parameters
-        ----------
-        Xs : list of array-likes or numpy.ndarray
-             - Xs length: n_views
-             - Xs[i] shape: (n_samples, n_features_i)
-            The data to fit to. Each view will receive its own
-            transformation matrix and projection.
-        Returns
-        -------
-        Xs_transformed : array-like, 2D if view_idx not None, otherwise
-            (n_views, n_samples, self.n_components)
-        """
-
-        return self.fit(Xs).transform(Xs)

@@ -1,22 +1,35 @@
-View Embedding
-==============
+Embedding
+=========
 
 .. currentmodule:: mvlearn.embed
 
-Generalized Canonical Correlation Analysis
-------------------------------------------
+Canonical Correlation Analysis (CCA)
+------------------------------------
+
+.. autoclass:: CCA
+    :exclude-members: get_params, set_params
+
+Multiview Canonical Correlation Analysis (MCCA)
+-----------------------------------------------
+
+.. autoclass:: MCCA
+    :exclude-members: get_params, set_params
+
+Kernel MCCA
+-----------
+
+.. autoclass:: KMCCA
+    :exclude-members: get_params, set_params
+
+Generalized Canonical Correlation Analysis (GCCA)
+-------------------------------------------------
 
 .. autoclass:: GCCA
     :exclude-members: get_params, set_params
 
-Kernel Canonical Correlation Analysis
--------------------------------------
 
-.. autoclass:: KCCA
-    :exclude-members: get_params, set_params
-
-Deep Canonical Correlation Analysis
------------------------------------
+Deep Canonical Correlation Analysis (DCCA)
+------------------------------------------
 
 .. autoclass:: DCCA
     :exclude-members: get_params, set_params
