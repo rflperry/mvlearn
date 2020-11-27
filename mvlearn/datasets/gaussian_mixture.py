@@ -1,40 +1,8 @@
 # License: MIT
+# Author: Ronan Perry
 
 import numpy as np
 from scipy.stats import ortho_group
-
-
-def _add_noise(X, n_noise, random_state=None):
-    """Appends dimensions of standard normal noise to X
-    """
-    np.random.seed(random_state)
-    noise = np.random.randn(X.shape[0], n_noise)
-    return np.hstack((X, noise))
-
-
-def _linear2view(X):
-    """Rotates the data, a linear transformation
-    """
-    if X.shape[1] == 1:
-        X = -X
-    else:
-        np.random.seed(2)
-        X = X @ ortho_group.rvs(X.shape[1])
-    return X
-
-
-def _poly2view(X):
-    """Applies a degree 2 polynomial transform to the data
-    """
-    X = np.asarray([np.power(x, 2) for x in X])
-    return X
-
-
-def _sin2view(X):
-    """Applies a sinusoidal transformation to the data
-    """
-    X = np.asarray([np.sin(x) for x in X])
-    return X
 
 
 class GaussianMixture:
@@ -43,6 +11,8 @@ class GaussianMixture:
         n_samples,
         centers,
         covariances,
+        noise=1,
+        noise_dims=None,
         class_probs=None,
         random_state=None,
         shuffle=False,
@@ -68,6 +38,10 @@ class GaussianMixture:
         covariances : 2D array-like or list of 2D array-likes
             The covariance matrix(s) of the Gaussian(s), matched
             to the specified centers.
+        noise : double or None (default=None)
+            Variance of mean zero Gaussian noise to add
+        noise_dims : int or None (default=None)
+            Number of additional dimensions to add of pure Gaussian noise
         class_probs : array-like, default=None
             A list of probabilities specifying the probability of a latent
             point being sampled from each of the Gaussians. Must sum to 1. If
@@ -89,8 +63,6 @@ class GaussianMixture:
         y_ : np.ndarray, of shape (n_samples)
             Integer labels denoting which Gaussian distribution each sample
             came from.
-        Xs_ : list of array-like, of shape (2, n_samples, n_dims)
-            List of views of data created by transforming the latent.
         centers : ndarray of shape (n_classes, n_dims)
             The mean(s) of the Gaussian(s) from which the latent
             points are sampled.
@@ -119,14 +91,15 @@ class GaussianMixture:
         >>> covariances = [np.eye(2), np.eye(2)]
         >>> GM = GaussianMixture(n_samples, centers, covariances,
         ...                      shuffle=True, shuffle_random_state=42)
-        >>> GM = GM.sample_views(transform='poly', n_noise=2)
-        >>> Xs, y = GM.get_Xy()
+        >>> Xs, y = GM.sample_views(transform='poly')
         >>> print(y)
         [1. 0. 1. 0. 1. 0. 1. 0. 0. 1.]
         """
+        self.n_samples = n_samples
         self.centers_ = np.asarray(centers)
         self.covariances_ = np.asarray(covariances)
-        self.n_samples = n_samples
+        self.noise = noise
+        self.noise_dims = noise_dims
         self.class_probs_ = class_probs
         self.random_state = random_state
         self.shuffle = shuffle
@@ -192,7 +165,7 @@ class GaussianMixture:
             self.latent_ = self.latent_[indices, :]
             self.y_ = self.y_[indices]
 
-    def sample_views(self, transform="linear", n_noise=1):
+    def sample_views(self, transform="linear"):
         r"""
         Transforms one latent view by specified transformation and adds noise.
 
@@ -207,7 +180,8 @@ class GaussianMixture:
 
         Returns
         -------
-        self : returns an instance of self
+        Xs, y : tuple of np.ndarray
+            Views and their labels.
         """
 
         if callable(transform):
@@ -229,44 +203,46 @@ class GaussianMixture:
                 , 'sin'} or a callable function. Not "
                 + f"{transform}"
             )
-
-        self.Xs_ = [self.latent_, X]
+        X += np.sqrt(self.noise) * np.random.randn(*X.shape)
+        Xs = [self.latent_, X]
 
         # if random_state is not None, make sure both views are independent
         # but reproducible
-        if self.random_state is None:
-            self.Xs_ = [
-                _add_noise(X, n_noise=n_noise, random_state=self.random_state)
-                for X in self.Xs_
-            ]
-        else:
-            self.Xs_ = [
-                _add_noise(
-                    X, n_noise=n_noise, random_state=(self.random_state + i)
-                )
-                for i, X in enumerate(self.Xs_)
-            ]
+        if self.noise_dims is not None:
+            np.random.seed(self.random_state)
+            Xs = [_add_noise(X, self.noise_dims, self.noise) for X in Xs]
 
-        return self
+        return Xs, self.y_
 
-    def get_Xy(self, latents=False):
-        r"""
-        Returns the sampled views or latent variables.
 
-        Parameters
-        ----------
-        latents : boolean, default=False
-            If true, returns the latent variables rather than the
-            transformed views.
+def _add_noise(X, n_noise, var):
+    """Appends dimensions of standard normal noise to X
+    """
+    noise_vars = np.random.randn(X.shape[0], n_noise)
+    noise_vars *= np.sqrt(var)
+    return np.hstack((X, noise_vars))
 
-        Returns
-        -------
-        (Xs, y) : the transformed views and their labels. If `latents=True`,
-            returns the latent variables instead of Xs.
-        """
-        if latents:
-            return (self.latent_, self.y_)
-        else:
-            if not hasattr(self, "Xs_"):
-                raise NameError("sample_views has not been called yet")
-            return (self.Xs_, self.y_)
+
+def _linear2view(X):
+    """Rotates the data, a linear transformation
+    """
+    if X.shape[1] == 1:
+        X = -X
+    else:
+        np.random.seed(2)
+        X = X @ ortho_group.rvs(X.shape[1])
+    return X
+
+
+def _poly2view(X):
+    """Applies a degree 2 polynomial transform to the data
+    """
+    X = np.asarray([np.power(x, 2) for x in X])
+    return X
+
+
+def _sin2view(X):
+    """Applies a sinusoidal transformation to the data
+    """
+    X = np.asarray([np.sin(x) for x in X])
+    return X
